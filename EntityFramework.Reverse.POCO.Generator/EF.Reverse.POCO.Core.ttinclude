@@ -735,53 +735,18 @@
             DoNotUse
         }
 
-        public static Relationship CalcRelationship(Table pkTable, Table fkTable, List<Column> fkCols, List<Column> pkCols)
+        public static Relationship CalcRelationship(Table parentTable, Table childTable, List<Column> childTableCols, List<Column> parentTableCols)
         {
-            if (fkCols.Count() == 1 && pkCols.Count() == 1)
-                return CalcRelationshipSingle(pkTable, fkTable, fkCols.First(), pkCols.First());
+            // parentTableColis is unique (PK or unique index)
 
-            // This relationship has multiple composite keys
+            var childColsNames = childTableCols.Select(x => x.Name).ToList();
+            var childUniqueIndex = childTable.UniqueIndexes.Where(x => childColsNames.Count() == x.Count() && childColsNames.All(childColsName => x.ToList().Select(y=>y.ColumnName.ToLower()).Contains(childColsName.ToLower())) ).FirstOrDefault();
 
-            bool fkTableAllPrimaryKeys = (fkTable.PrimaryKeys.Count() == fkCols.Count());
-            bool pkTableAllPrimaryKeys = (pkTable.PrimaryKeys.Count() == pkCols.Count());
-            bool fkColumnsAllPrimaryKeys = (fkCols.Count(x => x.IsPrimaryKey) == fkCols.Count());
-            bool pkColumnsAllPrimaryKeys = (pkCols.Count(x => x.IsPrimaryKey) == pkCols.Count());
-
-            // 1:1
-            if(fkColumnsAllPrimaryKeys && pkColumnsAllPrimaryKeys && fkTableAllPrimaryKeys && pkTableAllPrimaryKeys)
+            // if child FK is also unique, it's one-to-one.
+            if (childUniqueIndex != null)
                 return Relationship.OneToOne;
 
-            // 1:n
-            if(fkColumnsAllPrimaryKeys && !pkColumnsAllPrimaryKeys && fkTableAllPrimaryKeys)
-                return Relationship.OneToMany;
-
-            // n:1
-            if(!fkColumnsAllPrimaryKeys && pkColumnsAllPrimaryKeys && pkTableAllPrimaryKeys)
-                return Relationship.ManyToOne;
-
-            // n:n
-            return Relationship.ManyToMany;
-        }
-
-        public static Relationship CalcRelationshipSingle(Table pkTable, Table fkTable, Column fkCol, Column pkCol)
-        {
-            bool fkTableSinglePrimaryKey = (fkTable.PrimaryKeys.Count() == 1);
-            bool pkTableSinglePrimaryKey = (pkTable.PrimaryKeys.Count() == 1);
-
-            // 1:1
-            if(fkCol.IsPrimaryKey && pkCol.IsPrimaryKey && fkTableSinglePrimaryKey && pkTableSinglePrimaryKey)
-                return Relationship.OneToOne;
-
-            // 1:n
-            if(fkCol.IsPrimaryKey && !pkCol.IsPrimaryKey && fkTableSinglePrimaryKey)
-                return Relationship.OneToMany;
-
-            // n:1
-            if(!fkCol.IsPrimaryKey && pkCol.IsPrimaryKey && pkTableSinglePrimaryKey)
-                return Relationship.ManyToOne;
-
-            // n:n
-            return Relationship.ManyToMany;
+            return Relationship.ManyToOne;
         }
 
         public class EnumDefinition
@@ -889,7 +854,7 @@
                     else
                         inlineComments += ". " + ExtendedProperty;
                 }
-				var initialization = UsePropertyInitializers ? ((this.Default == string.Empty)?"" : string.Format(" = {0};", this.Default)) : "";
+                var initialization = UsePropertyInitializers ? ((this.Default == string.Empty)?"" : string.Format(" = {0};", this.Default)) : "";
                 Entity = string.Format("public {0}{1} {2} {{ get; {3}set; }}{4}{5}", (OverrideModifier ? "override " : ""), WrapIfNullable(PropertyType, this), NameHumanCase, usePrivateSetterForComputedColumns && IsComputed() ? "private " : string.Empty, initialization, inlineComments);
             }
 
@@ -1750,13 +1715,13 @@ WHERE st.DatabaseName = @synonmymDatabaseName;
 
 -- Pull details about the synonym target from each database being referenced
 SELECT sc.name AS SynonymSchemaName, sn.name as SynonymName
-	, sn.[object_id]
-	, sn.base_object_name
-	, OBJECT_ID(sn.base_object_name) as base_object_id
-	, PARSENAME(sn.base_object_name, 1) as ObjectName
-	, ISNULL(PARSENAME(sn.base_object_name, 2), sc.name) as SchemaName
-	, ISNULL(PARSENAME(sn.base_object_name, 3), DB_NAME()) as DatabaseName
-	, PARSENAME(sn.base_object_name, 4) as ServerName
+    , sn.[object_id]
+    , sn.base_object_name
+    , OBJECT_ID(sn.base_object_name) as base_object_id
+    , PARSENAME(sn.base_object_name, 1) as ObjectName
+    , ISNULL(PARSENAME(sn.base_object_name, 2), sc.name) as SchemaName
+    , ISNULL(PARSENAME(sn.base_object_name, 3), DB_NAME()) as DatabaseName
+    , PARSENAME(sn.base_object_name, 4) as ServerName
 INTO #SynonymTargets
 FROM sys.synonyms sn
 INNER JOIN sys.schemas sc
@@ -1768,11 +1733,11 @@ DECLARE @synonmymDatabaseName sysname = (SELECT TOP (1) DatabaseName FROM #Synon
 DECLARE @synonmymDetailsSelect nvarchar(max)
 WHILE (@synonmymDatabaseName IS NOT NULL)
 BEGIN
-	SET @synonmymDetailsSelect = REPLACE(@synonymDetailsQueryTemplate, '[@synonmymDatabaseName]', '[' + @synonmymDatabaseName + ']')
-	--SELECT @synonmymDetailsSelect
-	EXEC sp_executesql @stmt=@synonmymDetailsSelect, @params=N'@synonmymDatabaseName sysname', @synonmymDatabaseName=@synonmymDatabaseName
-	DELETE FROM #SynonymTargets WHERE DatabaseName = @synonmymDatabaseName
-	SET @synonmymDatabaseName = (SELECT TOP (1) DatabaseName FROM #SynonymTargets)
+    SET @synonmymDetailsSelect = REPLACE(@synonymDetailsQueryTemplate, '[@synonmymDatabaseName]', '[' + @synonmymDatabaseName + ']')
+    --SELECT @synonmymDetailsSelect
+    EXEC sp_executesql @stmt=@synonmymDetailsSelect, @params=N'@synonmymDatabaseName sysname', @synonmymDatabaseName=@synonmymDatabaseName
+    DELETE FROM #SynonymTargets WHERE DatabaseName = @synonmymDatabaseName
+    SET @synonmymDatabaseName = (SELECT TOP (1) DatabaseName FROM #SynonymTargets)
 END
 SET NOCOUNT OFF;
 ";
@@ -2304,6 +2269,17 @@ SELECT  SERVERPROPERTY('Edition') AS Edition,
                 }
 
                 Table t = null;
+
+                foreach (var indexTable in list)
+                {
+                    if (t == null || t.Name != indexTable.TableName || t.Schema != indexTable.Schema)
+                        t = tables.Find(x => x.Name == indexTable.TableName && x.Schema == indexTable.Schema);
+
+                    if (t == null)
+                        continue;
+                    t.Indexes.Add(indexTable);
+                }
+
                 var indexTables = list
                     .Select(x => new { x.Schema, x.TableName })
                     .Distinct();
@@ -2342,7 +2318,8 @@ SELECT  SERVERPROPERTY('Edition') AS Edition,
                     // Find unique indexes for table
                     var uniqueIndexKeys =
                         indexes.Where(x => x.IsUnique || x.IsPrimaryKey || x.IsUniqueConstraint)
-                            .OrderBy(o => o.ColumnCount)
+                            .OrderBy(o => o.IsPrimaryKey ? 0 : 1)
+                            .ThenBy(o => o.ColumnCount)
                             .ThenBy(o => o.KeyOrdinal);
 
                     // Process only the first index with the lowest unique column count
@@ -2352,9 +2329,8 @@ SELECT  SERVERPROPERTY('Edition') AS Edition,
                         if (indexName == null)
                             indexName = key.IndexName;
 
-                        if (indexName != key.IndexName)
-                            break; // First unique index with lowest column count has been processed, exit.
-
+                        if (indexName == key.IndexName)
+                        {
                         var col = t.Columns.Find(x => x.Name == key.ColumnName);
                         if (col != null && !col.IsNullable && !col.Hidden && !col.IsPrimaryKey)
                         {
@@ -2364,6 +2340,7 @@ SELECT  SERVERPROPERTY('Edition') AS Edition,
                         }
                     }
                 }
+            }
             }
 
             public override void ReadExtendedProperties(Tables tables)
@@ -2605,13 +2582,15 @@ SELECT  SERVERPROPERTY('Edition') AS Edition,
                     if (!fkCols.Any())
                         continue;
 
-                    var pkCols = foreignKeys.Select(x => pkTable.Columns.Find(n => string.Equals(n.Name, x.PkColumn, StringComparison.InvariantCultureIgnoreCase)))
-                                            .Where(x => x != null && x.IsPrimaryKey)
-                                            .OrderBy(o => o.Ordinal)
+                    var pkColsNames = foreignKeys.Select(x => x.PkColumn).ToList();
+                    var pkUniqueIndex = pkTable.UniqueIndexes.Where(x => pkColsNames.Count() == x.Count() && pkColsNames.All(pkColsName => x.ToList().Select(y=>y.ColumnName.ToLower()).Contains(pkColsName.ToLower())) ).FirstOrDefault();
+
+                    if (pkUniqueIndex==null)
+                        continue;
+
+                    var pkCols = pkUniqueIndex.Select(x => pkTable.Columns.SingleOrDefault(n => string.Equals(n.Name, x.ColumnName, StringComparison.InvariantCultureIgnoreCase)))
                                             .ToList();
 
-                    if (!pkCols.Any())
-                        continue;
 
                     var fkCol = fkCols.First();
                     var pkCol = pkCols.First();
@@ -3116,10 +3095,12 @@ SELECT  SERVERPROPERTY('Edition') AS Edition,
             public List<string> ReverseNavigationUniquePropName;
             public List<string> ReverseNavigationUniquePropNameClashes;
             public List<string> DataAnnotations;
+            public List<Index> Indexes;
 
             public Table()
             {
                 Columns = new List<Column>();
+                Indexes = new List<Index>();
                 ResetNavigationProperties();
                 ReverseNavigationUniquePropNameClashes = new List<string>();
                 DataAnnotations = new List<string>();
@@ -3165,6 +3146,15 @@ SELECT  SERVERPROPERTY('Edition') AS Edition,
                                   .OrderBy(x => x.PrimaryKeyOrdinal)
                                   .ThenBy(x => x.Ordinal)
                                   .ToList();
+                }
+            }
+
+            public IEnumerable<IEnumerable<Index>> UniqueIndexes
+            {
+                get
+                {
+                    return this.Indexes.Where(x => x.IsUnique)
+                                  .GroupBy(x => x.IndexName);
                 }
             }
 
