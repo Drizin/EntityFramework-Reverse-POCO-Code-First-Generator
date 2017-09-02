@@ -286,6 +286,20 @@ foreach(Table tbl in from t in tables.Where(t => !t.IsMapping && t.HasPrimaryKey
         protected override void OnModelCreating(System.Data.Entity.DbModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
+			//removing all automatic "Discovery"
+			modelBuilder.Conventions.Remove<System.Data.Entity.ModelConfiguration.Conventions.TypeNameForeignKeyDiscoveryConvention>();
+			modelBuilder.Conventions.Remove<System.Data.Entity.ModelConfiguration.Conventions.StoreGeneratedIdentityKeyConvention>(); // integer PKs are identity
+			modelBuilder.Conventions.Remove<System.Data.Entity.ModelConfiguration.Conventions.PluralizingTableNameConvention>();
+			modelBuilder.Conventions.Remove<System.Data.Entity.ModelConfiguration.Conventions.PluralizingEntitySetNameConvention>();
+			modelBuilder.Conventions.Remove<System.Data.Entity.ModelConfiguration.Conventions.NavigationPropertyNameForeignKeyDiscoveryConvention>();
+			modelBuilder.Conventions.Remove<System.Data.Entity.ModelConfiguration.Conventions.ManyToManyCascadeDeleteConvention>(); // até faz sentido..
+			modelBuilder.Conventions.Remove<System.Data.Entity.ModelConfiguration.Conventions.OneToManyCascadeDeleteConvention>(); // até faz sentido..
+			modelBuilder.Conventions.Remove<System.Data.Entity.ModelConfiguration.Conventions.KeyDiscoveryConvention>();
+			modelBuilder.Conventions.Remove<System.Data.Entity.ModelConfiguration.Conventions.IdKeyDiscoveryConvention>();
+			modelBuilder.Conventions.Remove<System.Data.Entity.ModelConfiguration.Conventions.ForeignKeyDiscoveryConvention>();
+			modelBuilder.Conventions.Remove<System.Data.Entity.ModelConfiguration.Conventions.ComplexTypeDiscoveryConvention>();
+			modelBuilder.Conventions.Remove<System.Data.Entity.ModelConfiguration.Conventions.AssociationInverseDiscoveryConvention>();
+			modelBuilder.Conventions.Remove<System.Data.Entity.ModelConfiguration.Conventions.PrimaryKeyNameForeignKeyDiscoveryConvention>();
 <# if(storedProcs.Any() && IncludeTableValuedFunctions)
 { #>
 
@@ -979,7 +993,7 @@ if(!tbl.HasPrimaryKey) { #>
     {
 <# WritePocoBaseClassBody(tbl); #>
 <# int DataMemberOrder = 1;
-foreach(Column col in tbl.Columns.OrderBy(x => x.Ordinal).Where(x => !x.Hidden))
+foreach(Column col in tbl.Columns.OrderBy(x => x.Ordinal).Where(x => !x.Hidden && !x.IsDefinedExternally))
 {
 if(AddWcfDataAttributes) { #>        [System.Runtime.Serialization.DataMember(Order = <#=DataMemberOrder++#>, IsRequired = <#=col.IsNullable ? "false" : "true"#>)]
 <# } #>

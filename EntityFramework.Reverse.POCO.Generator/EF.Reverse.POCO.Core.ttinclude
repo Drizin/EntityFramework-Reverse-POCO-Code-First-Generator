@@ -850,6 +850,7 @@
             public bool IsMaxLength;
             public bool Hidden;
             public bool IsForeignKey;
+			public bool IsDefinedExternally;
 
             public string Config;
             public List<string> ConfigFk = new List<string>();
